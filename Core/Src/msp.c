@@ -3,10 +3,11 @@
 * @brief MSP Init and Deinit
 * @author Oliver Moore
 * @version 1.0
-* @date 03-05-2022
+* @date 03-19-2022
 ***********************************************/
 
 #include "main.h"
+#include "FreeRTOS.h"
 
 void HAL_MspInit(void) {
 
@@ -25,54 +26,6 @@ void HAL_MspInit(void) {
 	HAL_NVIC_SetPriority(MemoryManagement_IRQn, 0, 0);
 	HAL_NVIC_SetPriority(BusFault_IRQn, 0, 0);
 	HAL_NVIC_SetPriority(UsageFault_IRQn, 0, 0);
-	//HAL_Init() in main.c already takes care of SysTick_IRQn priority setting
-}
-
-void HAL_CAN_MspInit(CAN_HandleTypeDef *hcan) {
-	GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-	if(hcan->Instance == CAN1) {
-		__HAL_RCC_CAN1_CLK_ENABLE();
-		__HAL_RCC_GPIOD_CLK_ENABLE();
-
-		/** CAN1 GPIO Configuration
-			PD0     ------> CAN1_RX
-			PD1     ------> CAN1_TX
-		*/
-		GPIO_InitStruct.Pin = (CAN1_RX_PIN | CAN1_TX_PIN);
-		GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-		GPIO_InitStruct.Pull = GPIO_NOPULL;
-		GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-		GPIO_InitStruct.Alternate = GPIO_AF9_CAN1;
-		HAL_GPIO_Init(CAN1_GPIO_Port, &GPIO_InitStruct);
-
-		HAL_NVIC_SetPriority(CAN1_TX_IRQn, 15, 0);
-		HAL_NVIC_SetPriority(CAN1_RX0_IRQn, 15, 0);
-		HAL_NVIC_SetPriority(CAN1_RX1_IRQn, 15, 0);
-		HAL_NVIC_SetPriority(CAN1_SCE_IRQn, 15, 0);
-
-		HAL_NVIC_EnableIRQ(CAN1_TX_IRQn);
-		HAL_NVIC_EnableIRQ(CAN1_RX0_IRQn);
-		HAL_NVIC_EnableIRQ(CAN1_RX1_IRQn);
-		HAL_NVIC_EnableIRQ(CAN1_SCE_IRQn);
-	}
-}
-
-void HAL_CAN_MspDeInit(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		__HAL_RCC_CAN1_CLK_DISABLE();
-
-		/** CAN1 GPIO Configuration
-			PD0     ------> CAN1_RX
-			PD1     ------> CAN1_TX
-		*/
-		HAL_GPIO_DeInit(CAN1_GPIO_Port, (CAN1_RX_PIN | CAN1_TX_PIN));
-
-		HAL_NVIC_DisableIRQ(CAN1_TX_IRQn);
-		HAL_NVIC_DisableIRQ(CAN1_RX0_IRQn);
-		HAL_NVIC_DisableIRQ(CAN1_RX1_IRQn);
-		HAL_NVIC_DisableIRQ(CAN1_SCE_IRQn);
-	}
 }
 
 void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
@@ -82,7 +35,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart) {
 		__HAL_RCC_USART2_CLK_ENABLE();
 		__HAL_RCC_GPIOD_CLK_ENABLE();
 
-		/** Orion BMS Jr (USART2)
+		/** TinyBMS (USART2)
 		 *  USART2 GPIO Configuration
 			PD5     ------> USART2_TX
 			PD6     ------> USART2_RX
@@ -120,7 +73,7 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef *huart) {
 	if(huart->Instance == USART2) {
 		__HAL_RCC_USART2_CLK_DISABLE();
 
-		/** Orion BMS Jr (USART2)
+		/** TinyBMS (USART2)
 		 *  USART2 GPIO Configuration
 			PD5     ------> USART2_TX
 			PD6     ------> USART2_RX

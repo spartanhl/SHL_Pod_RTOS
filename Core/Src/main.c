@@ -1,154 +1,84 @@
 /***********************************************
 * @file main.c
-* @brief Spartan Hyperloop Orion BMS Jr Testing
+* @brief Spartan Hyperloop RTOS
 * @author Oliver Moore
 * @version 1.0
-* @date 03-05-2022
+* @date 03-19-2022
 ***********************************************/
+
+/*
+ * Couple Ways to use Continuous Recording feature of SEGGER SystemView:
+ *
+ * 1) J-link based debug probe is required. The ST-link debug probe on the STM32-F7 nucleo board can be configured
+ *    by changing the ST link firmware to J-link by using the ST-Link reflash utility provided by SEGGER. This method is
+ *    not very useful because it removes the ability to flash code and debug the application using STM32CUBEIDE ST-Link.
+ *
+ * 2) RT Recording over UART communication (USART2 PA3, PD5) <---UART-to-USB---> Virtual COM to SystemViewer.
+ * 	  **Nucleo boards do not require a UART to USB converter because it supports on-board virtual COM port (VCP)**
+ */
 #include "main.h"
 
-CAN_HandleTypeDef hcan1;
+void SystemClock_Config_HSI(uint8_t clock_freq);
+void Error_Handler(void);
+
+static void GPIO_Init(void);
+static void UART_Init(void);
+static void RTC_Init(void);
+static void task1_handler(void* parameters);
+static void task2_handler(void* parameters);
+
+extern void SEGGER_UART_init(uint32_t);
+
+RTC_HandleTypeDef hrtc;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
-TIM_HandleTypeDef htim6;
-CAN_RxHeaderTypeDef RxHeader;
 
-//Test
-extern uint32_t OrionBMSExtID_Request;
-extern uint32_t OrionBMSExtID_Response;
+TaskHandle_t task1_handle = NULL;
+TaskHandle_t task2_handle = NULL;
 
-uint8_t led_num = 0;
-uint8_t bms_opmode = 0;
-
+void printmsg(char *msg);
+char usr_msg[250] = {0};
 
 int main(void) {
+
+	BaseType_t status;
+
 	/* Resets all peripherals, initializes the flash interface and Systick. */
 	HAL_Init();
 
 	/* Configure SYSCLK to 50MHZ */
-	SystemClock_Config_HSI(SYS_CLOCK_FREQ_50MHZ);
+	SystemClock_Config_HSI(SYS_CLOCK_FREQ_50MHZ); //Should increase freq for SEGGER SystemView
 
 	/* Initialize all configured peripherals */
 	GPIO_Init();
+	RTC_Init();
 	UART_Init();
-	TIM_Init();
-	CAN_Init(CANBITRATE_500KBIT_50MHZ);
-	CAN_Filter_Config();
 
-	CAN_Begin();
+	/* Segger SystemView v3.30 Related Config */
+	//SEGGER Event Time-Stamps
+	//Enable the CYCCNT counter (to assist with timestamp logging for SEGGER SystemView)
+	DWT_CTRL |= (1 << 0);
 
-	//UART_Test_API();
-	//CAN_Test_API();
+	SEGGER_UART_init(500000); //uncomment if using USART based continuous recording
+	SEGGER_SYSVIEW_Conf();
+	//SEGGER_SYSVIEW_Start(); //comment out if using UART based continuous recording
+	//traceSTART();
 
-	/* Application State Machine */
-  	while(1) {
-		switch(bms_opmode) {
-		case MONITOR_CHARGING:
-			//OrionBMSJr Init
-			if(OrionBMSJr_Init() != CMD_SUCCESS) {
-				printf("OrionBMSJr Init failed.\n");
-				Error_Handler();
-			}
+	/* Task Creation */
+	status = xTaskCreate(task1_handler, "Task-1", 200, "Hello World from Task-1", 2, &task1_handle);
+	configASSERT(status == pdPASS);
 
-			//Start the Timer (Interrupt mode - Non-Blocking)
-			//Timer is used to send a message to the charger every 1 second
-			HAL_TIM_Base_Start_IT(&htim6);
+	status = xTaskCreate(task2_handler, "Task-2", 200, "Hello World from Task-2", 2, &task2_handle);
+	configASSERT(status == pdPASS);
 
-			//Begin and Monitor Charging
-			OrionBMSJr_MonitorCharging();
+	/* FreeRTOS v10.4.6 */
+	vTaskStartScheduler();
 
-			//Stop the Timer
-			HAL_TIM_Base_Stop_IT(&htim6);
-			break;
+	//If the control comes here, then the launch of the scheduler has failed due to insufficient memory in the heap
+	sprintf(usr_msg, " Failed... \r\n");
+	printmsg(usr_msg);
 
-		case MONITOR_OPERATION:
-			//OrionBMSJr Init
-			if(OrionBMSJr_Init() != CMD_SUCCESS) {
-				printf("OrionBMSJr Init failed.\n");
-				Error_Handler();
-			}
-
-			OrionBMSJr_MonitorOperation();
-			break;
-
-		default:
-			Error_Handler();
-		}
-  	}
-}
-
-void UART_Test_API(void) {
-
-}
-
-void CAN_Test_API(void) {
-
-}
-
-void OrionBMSJr_MonitorCharging(void) {
-
-	//Verify that all cells are being detected
-
-	//Get voltage of all cells and compare with max/min voltage thresholds
-
-	//Check if cells need balancing or are in progress of balancing
-
-	//Check Newest Events
-
-	//Check Online Status
-
-	//Check Temperatures
-
-	//Get State of Charge
-
-	//Get Pack Voltage
-
-	//Get Pack Current
-
-}
-
-void OrionBMSJr_MonitorOperation(void) {
-	//Similar to MonitorCharging
-}
-
-void ElCon_SendMsg(void) {
-	//Triggered from HAL_TIM_PeriodElapsedCallback()
-	//Every 1 second, send 8-bytes of data with voltage and current requested to ExtID 0x1806E5F4
-	//Todo:
-	uint8_t msg[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	uint8_t len = 8;
-	CAN1_Tx(ELCONCHARGER1, msg, len);
-}
-
-uint8_t OrionBMSJr_Init(void) {
-	uint8_t retval = CMD_FAILURE;
-
-	//Read CAN NodeID and update to it if required
-
-	//Reset BMS
-
-	//Clear Events & Statistics
-
-	//Confirm BMS Reset by reading Lifetime Counter
-
-	//Read Version
-
-	//Get Min/Max Cell Voltage Thresholds
-
-	//Check for any active events
-
-	//Verify Pack Voltage and Current
-
-	//Get initial State of Charge
-
-	//Check Temperatures
-
-	//Verify Online Status is TINYBMS_STATUS_IDLE
-
-	//Check for any active events
-
-	retval = CMD_SUCCESS;
-	return retval;
+  	while(1) {}
 }
 
 void SystemClock_Config_HSI(uint8_t clock_freq) {
@@ -162,6 +92,11 @@ void SystemClock_Config_HSI(uint8_t clock_freq) {
 	osc_init.PLL.PLLState = RCC_PLL_ON;
 	osc_init.PLL.PLLSource = RCC_PLLSOURCE_HSI;
 
+	/** Activate the Over-Drive mode
+	if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
+		Error_Handler();
+	}
+	*/
 	switch(clock_freq) {
 	case SYS_CLOCK_FREQ_50MHZ: {
 		osc_init.PLL.PLLM = 16;
@@ -228,7 +163,7 @@ void SystemClock_Config_HSI(uint8_t clock_freq) {
 	HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
-void GPIO_Init(void) {
+static void GPIO_Init(void) {
 	GPIO_InitTypeDef GPIO_InitStruct = {0};
 
 	/* GPIO Ports Clock Enable */
@@ -236,12 +171,12 @@ void GPIO_Init(void) {
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 	__HAL_RCC_GPIOD_CLK_ENABLE();
-	//__HAL_RCC_GPIOH_CLK_ENABLE();
+	__HAL_RCC_GPIOH_CLK_ENABLE();
 
-	/* Configure GPIO pin Output Level */
+	/* Configure LED GPIO pin Output Level */
 	HAL_GPIO_WritePin(LED_GPIO_Port, (LED1_Pin | LED2_Pin | LED3_Pin), GPIO_PIN_RESET);
 
-	/* Configure GPIO pin : USER_Btn_Pin */
+	/* Configure User Button GPIO pin : USER_Btn_Pin */
 	GPIO_InitStruct.Pin = USER_Btn_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -254,11 +189,12 @@ void GPIO_Init(void) {
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
 	HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
 
+	HAL_NVIC_SetPriority(EXTI15_10_IRQn, 6, 0);
 	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
-void UART_Init(void) {
-	//USART2: PD5 PD6 for Orion BMS Jr communication
+static void UART_Init(void) {
+	/* USART2: SEGGER SystemView PD5 PD6 */
 	huart2.Instance = USART2;
 	huart2.Init.BaudRate = 115200;
 	huart2.Init.WordLength = UART_WORDLENGTH_8B;
@@ -273,7 +209,7 @@ void UART_Init(void) {
 		Error_Handler();
 	}
 
-	//USART3: PD8 PD9 for ST-LINK debugging (printf ITM)
+	/* USART3: PD8 PD9 for ST-LINK debugging (printf ITM) */
 	huart3.Instance = USART3;
 	huart3.Init.BaudRate = 115200;
 	huart3.Init.WordLength = UART_WORDLENGTH_8B;
@@ -289,303 +225,116 @@ void UART_Init(void) {
 	}
 }
 
-void TIM_Init(void) {
-	//TIM6 - Basic Timer
-	//Every 1 Second or 1Hz freq
-	htim6.Instance = TIM6;
-	htim6.Init.Prescaler = 4999;
-	htim6.Init.Period = 10000-1;
-	if(HAL_TIM_Base_Init(&htim6) != HAL_OK) {
+static void RTC_Init(void) {
+
+	/* Initialize RTC Only */
+	hrtc.Instance = RTC;
+	hrtc.Init.HourFormat = RTC_HOURFORMAT_12;
+	hrtc.Init.AsynchPrediv = 127;
+	hrtc.Init.SynchPrediv = 255;
+	hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
+	hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
+	hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
+	if(HAL_RTC_Init(&hrtc) != HAL_OK) {
 		Error_Handler();
 	}
 }
 
-void CAN_Init(uint8_t can_bitrate) {
-	/*	 		bxCAN (Basic Extended Controller Area Network) p.1295 of RM0385
-	 *  . STM32F746xx has CAN1 and CAN2 peripherals
-	 *    - CAN1 has direct access to 512B SRAM while CAN2 does not
-	 *  . Supports "Time Triggered Communication" for safety-critical applications
-	 *  . Supports CAN 2.0A (standard 11-bit ID) and 2.0B (extended 29-bit ID)
-	 *  	. Orion BMS Jr supports CAN2.0x (x-bit ID)
-	 *  	. Orion BMS Jr CAN bitrate of x kbit/s
-	 *  . 3 Tx Mailboxes, 2 Rx FIFOs
-	 *  . 28 Filter banks shared between CAN1 and CAN2 for dual CAN
-	 *  . Max Bitrate of bxCAN is 1Mbit/s
-	 * 	* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-	hcan1.Instance = CAN1;
-	hcan1.Init.Mode = CAN_MODE_NORMAL;
-	hcan1.Init.AutoBusOff = ENABLE;
-	hcan1.Init.AutoRetransmission = ENABLE;
-	hcan1.Init.AutoWakeUp = DISABLE;
-	hcan1.Init.ReceiveFifoLocked = DISABLE;
-	hcan1.Init.TimeTriggeredMode = DISABLE;
-	hcan1.Init.TransmitFifoPriority = DISABLE;
+static void task1_handler(void* parameters) {
 
-	/* Settings related to CAN bit timings (http://www.bittiming.can-wiki.info/) */
-	switch(can_bitrate) {
-	/*
-	case CANBITRATE_1MBIT_50MHZ:
-		* ** 1Mbit/s (max bitrate) @ 50MHz SYSCLK ** *
-		//prescaler = 5, num_TQ = 10, Seg1 = 8, Seg2 = 1, Sample point at 90.0, register CAN_BTR = 0x00070004
-		hcan1.Init.Prescaler = 5;
-		hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-		hcan1.Init.TimeSeg1 = CAN_BS1_8TQ;
-		hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
-		break;
-	*/
-	case CANBITRATE_500KBIT_50MHZ:
-		/* ** 500kbit/s @ 50MHz SYSCLK ** */
-		//prescaler = 5, num_TQ = 10, Seg1 = 8, Seg2 = 1, Sample point at 90.0, register CAN_BTR = 0x00070009
-		hcan1.Init.Prescaler = 10;
-		hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-		hcan1.Init.TimeSeg1 = CAN_BS1_8TQ;
-		hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
-		break;
-	/*
-	case CANBITRATE_250KBIT_50MHZ:
-		* ** 250kbit/s @ 50MHz SYSCLK ** *
-		//prescaler = 5, num_TQ = 10, Seg1 = 8, Seg2 = 1, Sample point at 90.0, register CAN_BTR = 0x00070013
-		hcan1.Init.Prescaler = 20;
-		hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-		hcan1.Init.TimeSeg1 = CAN_BS1_8TQ;
-		hcan1.Init.TimeSeg2 = CAN_BS2_1TQ;
-		break;
-	*/
-	/*
-	case CANBITRATE_125KBIT_50MHZ:
-		* ** 125kbit/s @ 50MHz SYSCLK ** *
-		//prescaler = 25, num_TQ = 16, Seg1 = 13, Seg2 = 2, Sample point at 87.5, register CAN_BTR = 0x001c0018
-		hcan1.Init.Prescaler = 25;
-		hcan1.Init.SyncJumpWidth = CAN_SJW_1TQ;
-		hcan1.Init.TimeSeg1 = CAN_BS1_13TQ;
-		hcan1.Init.TimeSeg2 = CAN_BS2_2TQ;
-		break;
-	*/
-	default:
-		Error_Handler();
+	char msg[100];
+	while(1) {
+		SEGGER_SYSVIEW_PrintfTarget("Task 1");
+		printf("%s\n", (char*)parameters);
+
+		//Formatting string before using SEGGER's Printf
+		snprintf(msg, 100, "%s\n", (char*)parameters);
+		SEGGER_SYSVIEW_PrintfTarget(msg);
+
+		taskYIELD(); //cooperative scheduling with configUSE_PREEMPTION = 0
 	}
-	if(HAL_CAN_Init(&hcan1) != HAL_OK) {
-		Error_Handler();
-	}
+
+	/* Clean up before exiting */
+	vTaskDelete(NULL);
 }
 
-void CAN_Filter_Config(void) {
-	/*
-	 *  __Orion BMS Jr Related Info:__
-	 *  CAN2.0x (x-bit CAN Identifier)
-	 * 	Orion BMS Jr Default Node ID: x -> ExtID: x
-	 *
-	 *	__ElCon Charger Related Info:__
-	 *  ElCon Primary Pack Charger Node ID: 0x1806E5F4
-	 *
-	 *
-	 *	Filter Bank 0:	FB0_R1 (32-bit)    ID Reg / ID Reg 1
-	 *  				FB0_R2 (32-bit)  Mask Reg / ID Reg 2
-	 *
-	 *  Note: Mask Mode is useful for rules pertaining to matching specific bits of an ID.
-	 *  Note: List/ID Mode is useful for matching one or two exact ID's
-	 *
-	 * 														Mask Mode:
-	 * 			  31 30 29 28 27 26 25 24 | 23 22 21 | 20 19 18 17 16 | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 | 2 | 1 | 0
-	 * 	  ID Reg  x  x  x  x  x  x  x  x	x  x  x    x  x  x  x  x    x  x  x  x  x  x  x x   x x x x x   x   x   x
-	 * 	Mask Reg  x  x  x  x  x  x  x  x    x  x  x    x  x  x  x  x    x  x  x  x  x  x  x x   x x x x x   x   x   x
-	 * 			  |------STID[10:3]-------|-STID[2:0]|---EXID[17:13]--|-------EXID[12:5]------|-EXID[4:0]-|IDE|RTD|-0-|
-	 * 			  <-------------------FilterIDHigh-------------------> <-----------------FilterIDLow------------------>
-	 * 			  <-----------------FilterMaskIDHigh-----------------> <---------------FilterMaskIDLow---------------->
-	 *			  <----x----> <----x---->	<-----x-----> <----x---->   <----x----> <----x--->  <--x--> <------x------>
-	 *    		  <----x----> <----x---->	<-----x-----> <----x---->   <----x----> <----x--->  <--x--> <------x------>
-	 *
-	 *
-	 *													Identifier List Mode:
-	 * 			  31 30 29 28 27 26 25 24 | 23 22 21 | 20 19 18 17 16 | 15 14 13 12 11 10 9 8 | 7 6 5 4 3 | 2 | 1 | 0
-	 * 	ID Reg 1  0  0  0  0  0  0  0  0	0  0  0    0  0  0  0  0    0  0  0  0  0  0  0 0   0 0 0 0 0   0   0   0
-	 * 	ID Reg 2  0  0  0  0  0  0  0  0    0  0  0    0  0  0  0  0    0  0  0  0  0  0  0 0   0 0 0 0 0   0   0   0
-	 * 			  |------STID[10:3]-------|-STID[2:0]|---EXID[17:13]--|-------EXID[12:5]------|-EXID[4:0]-|IDE|RTD|-0-|
-	 * 			  <-------------------FilterIDHigh-------------------> <-----------------FilterIDLow------------------>
-	 * 			  <-----------------FilterMaskIDHigh-----------------> <---------------FilterMaskIDLow---------------->
-	 *			  <----4----> <----0---->	<-----2-----> <----0---->   <----0----> <----0--->  <--0--> <------0------>
-	 *    		  <----4----> <----8---->	<-----2-----> <----0---->   <----0----> <----0--->  <--0--> <------0------>
-	 *
-	 * Note: Mask Mode can also be used to check:
-	 * RTR = 0 (Data Frame)				IDE = 0 (11-bit STID)
-	 * RTR = 1 (Remote Frame)			IDE = 1 (29-bit EXID)
-	 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-	CAN_FilterTypeDef can1_filter_init = {0};
+static void task2_handler(void* parameters) {
 
-	//Orion BMS Jr Default Node ID: x
-	//ID List Mode: Allows Orion BMS Jr Request/Response messages from bus
-	can1_filter_init.FilterActivation = ENABLE;
-	can1_filter_init.FilterBank = 0;
-	can1_filter_init.FilterFIFOAssignment = CAN_RX_FIFO0;
-	can1_filter_init.FilterIdHigh = 0x0000;
-	can1_filter_init.FilterIdLow = 0x0000;
-	can1_filter_init.FilterMaskIdHigh = 0x0000;
-	can1_filter_init.FilterMaskIdLow = 0x0000;
-	can1_filter_init.FilterMode = CAN_FILTERMODE_IDLIST;
-	can1_filter_init.FilterScale = CAN_FILTERSCALE_32BIT;
-	if(HAL_CAN_ConfigFilter(&hcan1, &can1_filter_init) != HAL_OK) {
-		Error_Handler();
+	char msg[100];
+	while(1) {
+		SEGGER_SYSVIEW_PrintfTarget("Task 2");
+		printf("%s\n", (char*)parameters);
+
+		//Formatting string before using SEGGER's Printf
+		snprintf(msg, 100, "%s\n", (char*)parameters);
+		SEGGER_SYSVIEW_PrintfTarget(msg);
+
+		taskYIELD(); //cooperative scheduling with configUSE_PREEMPTION = 0
 	}
+
+	/* Clean up before exiting */
+	vTaskDelete(NULL);
 }
 
-void CAN_Begin(void) {
-	//Activate Notifications (Interrupts) by setting CAN_IER bits
-	if(HAL_CAN_ActivateNotification(&hcan1, (CAN_IT_TX_MAILBOX_EMPTY | CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_BUSOFF)) != HAL_OK) {
-		Error_Handler();
-	}
-
-	//Start CAN
-	if(HAL_CAN_Start(&hcan1) != HAL_OK) {
-		Error_Handler();
-	}
-}
-
-void CAN1_Tx(uint8_t device, uint8_t* message, uint8_t len) {
-	CAN_TxHeaderTypeDef TxHeader;
-	uint32_t TxMailbox;
-
-	if(device == ORIONBMSJR) {
-		TxHeader.DLC = len;				//Data Length Code (in Bytes)
-		TxHeader.StdId = OrionBMSExtID_Request; //Extended ID
-		TxHeader.IDE = CAN_ID_EXT; 		//Standard or Extended ID type
-		TxHeader.RTR = CAN_RTR_DATA;	//Remote Transmission Request
-		if(HAL_CAN_AddTxMessage(&hcan1, &TxHeader, message, &TxMailbox) != HAL_OK) {
-			Error_Handler();
-		}
-	} else if(device == ELCONCHARGER1) {
-		//Todo:
-		TxHeader.DLC = 8;				//Data Length Code (in Bytes)
-		TxHeader.ExtId = 0x1806E5F4;	//Extended ID
-		TxHeader.IDE = CAN_ID_EXT; 		//Standard or Extended ID type
-		TxHeader.RTR = CAN_RTR_DATA;	//Remote Transmission Request
-		if(HAL_CAN_AddTxMessage(&hcan1, &TxHeader, message, &TxMailbox) != HAL_OK) {
-			Error_Handler();
-		}
-	} else {
-		Error_Handler();
-	}
-}
-
-void LED_Manage_Output(uint8_t led_no) {
-
-	switch(led_no) {
-	case 1:
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED1_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		break;
-	case 2:
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		break;
-	case 3:
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED2_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED3_Pin, GPIO_PIN_SET);
-		break;
-	case 4:
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED1_Pin, GPIO_PIN_RESET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED2_Pin, GPIO_PIN_SET);
-		HAL_GPIO_WritePin(LED_GPIO_Port, LED3_Pin, GPIO_PIN_RESET);
-		break;
-	default:
-		break;
-	}
-}
-
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_TxCpltCallback USART2\r\n");
-	}
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_RxCpltCallback USART2\r\n");
-	}
-}
-
-void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_ErrorCallback USART2\r\n");
-	}
-}
-
-void HAL_UART_AbortReceiveCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_AbortReceiveCpltCallback USART2\r\n");
-	}
-}
-
-void HAL_UART_AbortTransmitCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_AbortTransmitCpltCallback USART2\r\n");
-	}
-}
-
-void HAL_UART_AbortCpltCallback(UART_HandleTypeDef *huart) {
-	if(huart->Instance == USART2) {
-		printf("HAL_UART_AbortCpltCallback USART2\r\n");
-	}
-}
-
-void HAL_CAN_TxMailbox0CompleteCallback(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		char msg[50];
-		printf("HAL_CAN_TxMailbox0CompleteCallback CAN1\r\n");
-		sprintf(msg,"Message Transmitted:M0\r\n");
-		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	}
-}
-
-void HAL_CAN_TxMailbox1CompleteCallback(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		char msg[50];
-		printf("HAL_CAN_TxMailbox1CompleteCallback CAN1\r\n");
-		sprintf(msg,"Message Transmitted:M1\r\n");
-		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	}
-}
-
-void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		char msg[50];
-		printf("HAL_CAN_TxMailbox2CompleteCallback CAN1\r\n");
-		sprintf(msg,"Message Transmitted:M2\r\n");
-		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	}
-}
-
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		//Deactivate Notifications before getting Rx Message
-		if(HAL_CAN_DeactivateNotification(&hcan1, (CAN_IT_TX_MAILBOX_EMPTY | CAN_IT_RX_FIFO0_MSG_PENDING | CAN_IT_BUSOFF)) != HAL_OK) {
-			Error_Handler();
-		}
-
-		printf("HAL_CAN_RxFifo0MsgPendingCallback CAN1\r\n");
-	}
-}
-
-void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan) {
-	if(hcan->Instance == CAN1) {
-		char msg[50];
-		printf("HAL_CAN_ErrorCallback CAN1\r\n");
-		sprintf(msg, "CAN Error Detected\r\n");
-		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-	}
-}
-
+/**
+ * @brief  Period elapsed callback in non blocking mode
+ * @note   This function is called  when TIM6 interrupt took place, inside
+ * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+ * a global variable "uwTick" used as application time base.
+ * @param  htim : TIM handle
+ * @retval None
+ */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	/* USER CODE BEGIN Callback 0 */
 
-	if(htim->Instance == TIM6) {
-		//Every 1 second during Charging, send message to ElCon charger
-		ElCon_SendMsg();
+	/* USER CODE END Callback 0 */
+	if (htim->Instance == TIM6) {
+		HAL_IncTick();
+	}
+	/* USER CODE BEGIN Callback 1 */
+
+	/* USER CODE END Callback 1 */
+}
+
+void printmsg(char *msg) {
+	for(uint32_t i = 0; i < strlen(msg); i++) {
+		HAL_UART_Transmit(&huart2, (uint8_t*)&msg[i], sizeof(msg[i]), HAL_MAX_DELAY);
 	}
 }
 
 void Error_Handler(void) {
+	__disable_irq();
 	while(1);
 }
 
+void vAssertCalled(unsigned long ulLine, const char * const pcFileName) {
+	volatile uint32_t ulSetToNonZeroInDebuggerToContinue = 0;
+
+    /* Parameters are not used. */
+    (void)ulLine;
+    (void)pcFileName;
+
+    taskENTER_CRITICAL(); {
+        /* You can step out of this function to debug the assertion by using
+        the debugger to set ulSetToNonZeroInDebuggerToContinue to a non-zero
+        value. */
+        while( ulSetToNonZeroInDebuggerToContinue == 0 ) {}
+    }
+    taskEXIT_CRITICAL();
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line) {
+  /* USER CODE BEGIN 6 */
+  /* User can add their own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */

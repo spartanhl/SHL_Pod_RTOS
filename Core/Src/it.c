@@ -3,14 +3,12 @@
 * @brief ISR source file
 * @author Oliver Moore
 * @version 1.0
-* @date 03-05-2022
+* @date 03-19-2022
 ***********************************************/
 
 #include "it.h"
 #include "main.h"
 
-extern UART_HandleTypeDef huart2;
-extern CAN_HandleTypeDef hcan1;
 extern TIM_HandleTypeDef htim6;
 
 /******************************************************************************/
@@ -36,21 +34,8 @@ void UsageFault_Handler(void) {
 	while(1) {}
 }
 
-void SVC_Handler(void) {
-
-}
-
 void DebugMon_Handler(void) {
 
-}
-
-void PendSV_Handler(void) {
-
-}
-
-void SysTick_Handler(void) {
-	HAL_IncTick();
-	HAL_SYSTICK_IRQHandler();
 }
 
 /******************************************************************************/
@@ -59,25 +44,6 @@ void SysTick_Handler(void) {
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32f7xx.s).                    */
 /******************************************************************************/
-void USART2_IRQHandler(void) {
-	HAL_UART_IRQHandler(&huart2);
-}
-
-void CAN1_TX_IRQHandler(void) {
-	HAL_CAN_IRQHandler(&hcan1);
-}
-
-void CAN1_RX0_IRQHandler(void) {
-	HAL_CAN_IRQHandler(&hcan1);
-}
-
-void CAN1_RX1_IRQHandler(void) {
-	HAL_CAN_IRQHandler(&hcan1);
-}
-
-void CAN1_SCE_IRQHandler(void) {
-	HAL_CAN_IRQHandler(&hcan1);
-}
 
 void TIM6_DAC_IRQHandler(void) {
 	HAL_TIM_IRQHandler(&htim6);
