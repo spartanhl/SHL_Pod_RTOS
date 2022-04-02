@@ -145,7 +145,7 @@ void * pvPortMalloc( size_t xWantedSize )
                     > xWantedSize )
             {
                 xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
-                configASSERT( ( xWantedSize & portBYTE_ALIGNMENT_MASK ) == 0 );
+                configASSERT( (( xWantedSize & portBYTE_ALIGNMENT_MASK ) == 0) );
             }
             else
             {

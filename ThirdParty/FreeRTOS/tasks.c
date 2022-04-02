@@ -175,7 +175,7 @@
                                                                                                 \
         /* Find the highest priority list that contains ready tasks. */                         \
         portGET_HIGHEST_PRIORITY( uxTopPriority, uxTopReadyPriority );                          \
-        configASSERT( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ uxTopPriority ] ) ) > 0 ); \
+        configASSERT( (listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ uxTopPriority ] ) ) > 0) ); \
         listGET_OWNER_OF_NEXT_ENTRY( pxCurrentTCB, &( pxReadyTasksLists[ uxTopPriority ] ) );   \
     } /* taskSELECT_HIGHEST_PRIORITY_TASK() */
 
@@ -916,7 +916,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     }
 
     /* This is used as an array index so must ensure it's not too large. */
-    configASSERT( uxPriority < configMAX_PRIORITIES );
+    configASSERT( (uxPriority < configMAX_PRIORITIES) );
 
     if( uxPriority >= ( UBaseType_t ) configMAX_PRIORITIES )
     {
@@ -1241,7 +1241,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         {
             if( pxTCB == pxCurrentTCB )
             {
-                configASSERT( uxSchedulerSuspended == 0 );
+                configASSERT(( uxSchedulerSuspended == 0 ));
                 portYIELD_WITHIN_API();
             }
             else
@@ -1264,7 +1264,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         configASSERT( pxPreviousWakeTime );
         configASSERT( ( xTimeIncrement > 0U ) );
-        configASSERT( uxSchedulerSuspended == 0 );
+        configASSERT( (uxSchedulerSuspended == 0 ));
 
         vTaskSuspendAll();
         {
@@ -1350,7 +1350,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         /* A delay time of zero just forces a reschedule. */
         if( xTicksToDelay > ( TickType_t ) 0U )
         {
-            configASSERT( uxSchedulerSuspended == 0 );
+            configASSERT( (uxSchedulerSuspended == 0 ));
             vTaskSuspendAll();
             {
                 traceTASK_DELAY();
@@ -1554,7 +1554,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         UBaseType_t uxCurrentBasePriority, uxPriorityUsedOnEntry;
         BaseType_t xYieldRequired = pdFALSE;
 
-        configASSERT( uxNewPriority < configMAX_PRIORITIES );
+        configASSERT( (uxNewPriority < configMAX_PRIORITIES) );
 
         /* Ensure the new priority is valid. */
         if( uxNewPriority >= ( UBaseType_t ) configMAX_PRIORITIES )
@@ -1786,7 +1786,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             if( xSchedulerRunning != pdFALSE )
             {
                 /* The current task has just been suspended. */
-                configASSERT( uxSchedulerSuspended == 0 );
+                configASSERT( (uxSchedulerSuspended == 0) );
                 portYIELD_WITHIN_API();
             }
             else
@@ -2109,7 +2109,7 @@ void vTaskStartScheduler( void )
         /* This line will only be reached if the kernel could not be started,
          * because there was not enough FreeRTOS heap to create the idle task
          * or the timer task. */
-        configASSERT( xReturn != errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY );
+        configASSERT( (xReturn != errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY) );
     }
 
     /* Prevent compiler warnings if INCLUDE_xTaskGetIdleTaskHandle is set to 0,
@@ -2641,7 +2641,7 @@ BaseType_t xTaskCatchUpTicks( TickType_t xTicksToCatchUp )
 
     /* Must not be called with the scheduler suspended as the implementation
      * relies on xPendedTicks being wound down to 0 in xTaskResumeAll(). */
-    configASSERT( uxSchedulerSuspended == 0 );
+    configASSERT(( uxSchedulerSuspended == 0) );
 
     /* Use xPendedTicks to mimic xTicksToCatchUp number of ticks occurring when
      * the scheduler is suspended so the ticks are executed in xTaskResumeAll(). */
@@ -3127,7 +3127,7 @@ void vTaskPlaceOnUnorderedEventList( List_t * pxEventList,
 
     /* THIS FUNCTION MUST BE CALLED WITH THE SCHEDULER SUSPENDED.  It is used by
      * the event groups implementation. */
-    configASSERT( uxSchedulerSuspended != 0 );
+    configASSERT( (uxSchedulerSuspended != 0) );
 
     /* Store the item value in the event list item.  It is safe to access the
      * event list item here as interrupts won't access the event list item of a
@@ -3255,7 +3255,7 @@ void vTaskRemoveFromUnorderedEventList( ListItem_t * pxEventListItem,
 
     /* THIS FUNCTION MUST BE CALLED WITH THE SCHEDULER SUSPENDED.  It is used by
      * the event flags implementation. */
-    configASSERT( uxSchedulerSuspended != pdFALSE );
+    configASSERT( (uxSchedulerSuspended != pdFALSE) );
 
     /* Store the new item value in the event list. */
     listSET_LIST_ITEM_VALUE( pxEventListItem, xItemValue | taskEVENT_LIST_ITEM_VALUE_IN_USE );
@@ -4172,7 +4172,7 @@ static void prvResetNextTaskUnblockTime( void )
              * If the mutex is held by a task then it cannot be given from an
              * interrupt, and if a mutex is given by the holding task then it must
              * be the running state task. */
-            configASSERT( pxTCB == pxCurrentTCB );
+            configASSERT( (pxTCB == pxCurrentTCB) );
             configASSERT( pxTCB->uxMutexesHeld );
             ( pxTCB->uxMutexesHeld )--;
 
@@ -4279,7 +4279,7 @@ static void prvResetNextTaskUnblockTime( void )
                     /* If a task has timed out because it already holds the
                      * mutex it was trying to obtain then it cannot of inherited
                      * its own priority. */
-                    configASSERT( pxTCB != pxCurrentTCB );
+                    configASSERT( (pxTCB != pxCurrentTCB) );
 
                     /* Disinherit the priority, remembering the previous
                      * priority to facilitate determining the subject task's
@@ -4707,7 +4707,7 @@ TickType_t uxTaskResetEventItemValue( void )
     {
         uint32_t ulReturn;
 
-        configASSERT( uxIndexToWait < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToWait < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
 
         taskENTER_CRITICAL();
         {
@@ -4781,7 +4781,7 @@ TickType_t uxTaskResetEventItemValue( void )
     {
         BaseType_t xReturn;
 
-        configASSERT( uxIndexToWait < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToWait < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
 
         taskENTER_CRITICAL();
         {
@@ -4869,7 +4869,7 @@ TickType_t uxTaskResetEventItemValue( void )
         BaseType_t xReturn = pdPASS;
         uint8_t ucOriginalNotifyState;
 
-        configASSERT( uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
         configASSERT( xTaskToNotify );
         pxTCB = xTaskToNotify;
 
@@ -4923,7 +4923,7 @@ TickType_t uxTaskResetEventItemValue( void )
                     /* Should not get here if all enums are handled.
                      * Artificially force an assert by testing a value the
                      * compiler can't assume is const. */
-                    configASSERT( xTickCount == ( TickType_t ) 0 );
+                    configASSERT(( xTickCount == ( TickType_t ) 0 ));
 
                     break;
             }
@@ -4938,7 +4938,7 @@ TickType_t uxTaskResetEventItemValue( void )
                 prvAddTaskToReadyList( pxTCB );
 
                 /* The task should not have been on an event list. */
-                configASSERT( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL );
+                configASSERT(( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL) );
 
                 #if ( configUSE_TICKLESS_IDLE != 0 )
                     {
@@ -4995,7 +4995,7 @@ TickType_t uxTaskResetEventItemValue( void )
         UBaseType_t uxSavedInterruptStatus;
 
         configASSERT( xTaskToNotify );
-        configASSERT( uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
 
         /* RTOS ports that support interrupt nesting have the concept of a
          * maximum  system call (or maximum API call) interrupt priority.
@@ -5066,7 +5066,7 @@ TickType_t uxTaskResetEventItemValue( void )
                     /* Should not get here if all enums are handled.
                      * Artificially force an assert by testing a value the
                      * compiler can't assume is const. */
-                    configASSERT( xTickCount == ( TickType_t ) 0 );
+                    configASSERT( (xTickCount == ( TickType_t ) 0 ));
                     break;
             }
 
@@ -5077,7 +5077,7 @@ TickType_t uxTaskResetEventItemValue( void )
             if( ucOriginalNotifyState == taskWAITING_NOTIFICATION )
             {
                 /* The task should not have been on an event list. */
-                configASSERT( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL );
+                configASSERT( (listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL ));
 
                 if( uxSchedulerSuspended == ( UBaseType_t ) pdFALSE )
                 {
@@ -5130,7 +5130,7 @@ TickType_t uxTaskResetEventItemValue( void )
         UBaseType_t uxSavedInterruptStatus;
 
         configASSERT( xTaskToNotify );
-        configASSERT( uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToNotify < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
 
         /* RTOS ports that support interrupt nesting have the concept of a
          * maximum  system call (or maximum API call) interrupt priority.
@@ -5168,7 +5168,7 @@ TickType_t uxTaskResetEventItemValue( void )
             if( ucOriginalNotifyState == taskWAITING_NOTIFICATION )
             {
                 /* The task should not have been on an event list. */
-                configASSERT( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL );
+                configASSERT( (listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) == NULL) );
 
                 if( uxSchedulerSuspended == ( UBaseType_t ) pdFALSE )
                 {
@@ -5216,7 +5216,7 @@ TickType_t uxTaskResetEventItemValue( void )
         TCB_t * pxTCB;
         BaseType_t xReturn;
 
-        configASSERT( uxIndexToClear < configTASK_NOTIFICATION_ARRAY_ENTRIES );
+        configASSERT( (uxIndexToClear < configTASK_NOTIFICATION_ARRAY_ENTRIES) );
 
         /* If null is passed in here then it is the calling task that is having
          * its notification state cleared. */

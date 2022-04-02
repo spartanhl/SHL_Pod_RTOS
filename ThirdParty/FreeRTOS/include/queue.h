@@ -40,7 +40,7 @@
 #endif
 /* *INDENT-ON* */
 
-#include "../../../ThirdParty/FreeRTOS/include/task.h"
+#include "task.h"
 
 /**
  * Type by which queues are referenced.  For example, a call to xQueueCreate()

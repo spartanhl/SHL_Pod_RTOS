@@ -322,7 +322,7 @@ BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
         xReturn = pdFAIL;
     }
 
-    configASSERT( xReturn != pdFAIL );
+    configASSERT(( xReturn != pdFAIL ));
 
     /* A value is returned for calling semantic consistency with previous
      * versions. */
@@ -1162,7 +1162,7 @@ BaseType_t xQueueGenericSendFromISR( QueueHandle_t xQueue,
             {
                 /* Increment the lock count so the task that unlocks the queue
                  * knows that data was posted while it was locked. */
-                configASSERT( cTxLock != queueINT8_MAX );
+                configASSERT( (cTxLock != queueINT8_MAX) );
 
                 pxQueue->cTxLock = ( int8_t ) ( cTxLock + 1 );
             }
@@ -1198,7 +1198,7 @@ BaseType_t xQueueGiveFromISR( QueueHandle_t xQueue,
 
     /* xQueueGenericSendFromISR() should be used instead of xQueueGiveFromISR()
      * if the item size is not 0. */
-    configASSERT( pxQueue->uxItemSize == 0 );
+    configASSERT( (pxQueue->uxItemSize == 0) );
 
     /* Normally a mutex would not be given from an interrupt, especially if
      * there is a mutex holder, as priority inheritance makes no sense for an
@@ -1330,7 +1330,7 @@ BaseType_t xQueueGiveFromISR( QueueHandle_t xQueue,
             {
                 /* Increment the lock count so the task that unlocks the queue
                  * knows that data was posted while it was locked. */
-                configASSERT( cTxLock != queueINT8_MAX );
+                configASSERT( (cTxLock != queueINT8_MAX) );
 
                 pxQueue->cTxLock = ( int8_t ) ( cTxLock + 1 );
             }
@@ -1508,7 +1508,7 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
 
     /* Check this really is a semaphore, in which case the item size will be
      * 0. */
-    configASSERT( pxQueue->uxItemSize == 0 );
+    configASSERT( (pxQueue->uxItemSize == 0) );
 
     /* Cannot block if the scheduler is suspended. */
     #if ( ( INCLUDE_xTaskGetSchedulerState == 1 ) || ( configUSE_TIMERS == 1 ) )
@@ -1583,7 +1583,7 @@ BaseType_t xQueueSemaphoreTake( QueueHandle_t xQueue,
                      * if it were 0 the function would have exited. */
                     #if ( configUSE_MUTEXES == 1 )
                         {
-                            configASSERT( xInheritanceOccurred == pdFALSE );
+                            configASSERT( (xInheritanceOccurred == pdFALSE) );
                         }
                     #endif /* configUSE_MUTEXES */
 
@@ -1938,7 +1938,7 @@ BaseType_t xQueueReceiveFromISR( QueueHandle_t xQueue,
             {
                 /* Increment the lock count so the task that unlocks the queue
                  * knows that data was removed while it was locked. */
-                configASSERT( cRxLock != queueINT8_MAX );
+                configASSERT( (cRxLock != queueINT8_MAX) );
 
                 pxQueue->cRxLock = ( int8_t ) ( cRxLock + 1 );
             }
@@ -1967,7 +1967,7 @@ BaseType_t xQueuePeekFromISR( QueueHandle_t xQueue,
 
     configASSERT( pxQueue );
     configASSERT( !( ( pvBuffer == NULL ) && ( pxQueue->uxItemSize != ( UBaseType_t ) 0U ) ) );
-    configASSERT( pxQueue->uxItemSize != 0 ); /* Can't peek a semaphore. */
+    configASSERT( (pxQueue->uxItemSize != 0) ); /* Can't peek a semaphore. */
 
     /* RTOS ports that support interrupt nesting have the concept of a maximum
      * system call (or maximum API call) interrupt priority.  Interrupts that are
