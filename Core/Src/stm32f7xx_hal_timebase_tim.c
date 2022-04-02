@@ -23,7 +23,7 @@
 
 #include "stm32f7xx_hal.h"
 #include "stm32f7xx_hal_tim.h"
-
+#include "main.h"
 TIM_HandleTypeDef htim6;
 
 /**
@@ -54,19 +54,19 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority) {
 	HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
 
 	/* Compute TIM6 clock */
-	uwTimclock = (2 * HAL_RCC_GetPCLK1Freq());
+	uwTimclock = (2 * HAL_RCC_GetPCLK1Freq()); //2 * 16MHz = 32MHz     default sysclk * 2(multiplier) = f_tim6
 
-	/* Compute the prescaler value to have TIM6 counter clock equal to 1MHz */
-	uwPrescalerValue = (uint32_t)((uwTimclock / 1000000U) - 1U);
+	/* Compute the prescaler value to have TIM6 counter clock equal to 1kHz (1ms period)*/
+	uwPrescalerValue = (uint32_t)((uwTimclock / 1000000U) - 1U);  //Prescaler = 31
 
 	/* Initialize TIM6 */
 	htim6.Instance = TIM6;
 
-	/* Initialize TIMx peripheral as follows:
-		+ Period = [(TIM6CLK/1000) - 1]. to have a (1/1000)s time base.
-		+ Prescaler = (uwTimclock/1000000 - 1) to have a 1MHz counter clock.
-		+ ClockDivision = 0
-		+ Counter direction = Up
+	/* Initialize TIMx peripheral as follow:
+	  + Period = [(TIM6CLK/1000) - 1]. to have a 1ms time base.
+	  + Prescaler = ((uwTimclock/1000000) - 1) to have a 1kHz counter clock.
+	  + ClockDivision = 0
+	  + Counter direction = Up
 	*/
 	htim6.Init.Period = (1000000U / 1000U) - 1U;
 	htim6.Init.Prescaler = uwPrescalerValue;

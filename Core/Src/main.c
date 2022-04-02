@@ -6,78 +6,73 @@
 * @date 03-19-2022
 ***********************************************/
 
-/*
- * Couple Ways to use Continuous Recording feature of SEGGER SystemView:
- *
- * 1) J-link based debug probe is required. The ST-link debug probe on the STM32-F7 nucleo board can be configured
- *    by changing the ST link firmware to J-link by using the ST-Link reflash utility provided by SEGGER. This method is
- *    not very useful because it removes the ability to flash code and debug the application using STM32CUBEIDE ST-Link.
- *
- * 2) RT Recording over UART communication (USART2 PA3, PD5) <---UART-to-USB---> Virtual COM to SystemViewer.
- * 	  **Nucleo boards do not require a UART to USB converter because it supports on-board virtual COM port (VCP)**
- */
 #include "main.h"
 
-void SystemClock_Config_HSI(uint8_t clock_freq);
-void Error_Handler(void);
-
 static void GPIO_Init(void);
-static void UART_Init(void);
-static void RTC_Init(void);
-static void task1_handler(void* parameters);
-static void task2_handler(void* parameters);
+static void USART2_Init(void);
+static void USART3_Init(void);
 
-extern void SEGGER_UART_init(uint32_t);
+void vTaskA(void *pvParameters);
+void vTaskB(void *pvParameters);
+
+//static void vTask1(void* pvParameters);
+//static void vTask2(void* pvParameters);
 
 RTC_HandleTypeDef hrtc;
 UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
-TaskHandle_t task1_handle = NULL;
-TaskHandle_t task2_handle = NULL;
+/* Stores the handle of the task that will be notified when the transmission is complete. */
+static TaskHandle_t xTaskToNotify = NULL;
+
+//Demo
+TaskHandle_t xTaskAHandle = NULL;
+TaskHandle_t xTaskBHandle = NULL;
+
+//Transmission Tasks
+TaskHandle_t xTask1Handle = NULL;
+TaskHandle_t xTask2Handle = NULL;
 
 void printmsg(char *msg);
 char usr_msg[250] = {0};
 
-int main(void) {
 
+/* The index within the target task's array of task notifications
+to use. */
+const UBaseType_t xArrayIndex = 1;
+
+int main(void) {
 	BaseType_t status;
 
 	/* Resets all peripherals, initializes the flash interface and Systick. */
 	HAL_Init();
 
-	/* Configure SYSCLK to 50MHZ */
-	SystemClock_Config_HSI(SYS_CLOCK_FREQ_50MHZ); //Should increase freq for SEGGER SystemView
+	/* Reconfigure SYSCLK to 108MHz */
+	SystemClock_Config_HSI(SYS_CLOCK_FREQ_108MHZ);
 
 	/* Initialize all configured peripherals */
 	GPIO_Init();
-	RTC_Init();
-	UART_Init();
+	USART2_Init();
+	USART3_Init();
 
-	/* Segger SystemView v3.30 Related Config */
-	//SEGGER Event Time-Stamps
-	//Enable the CYCCNT counter (to assist with timestamp logging for SEGGER SystemView)
-	DWT_CTRL |= (1 << 0);
+	vTraceEnable(TRC_START);
 
-	SEGGER_UART_init(500000); //uncomment if using USART based continuous recording
-	SEGGER_SYSVIEW_Conf();
-	//SEGGER_SYSVIEW_Start(); //comment out if using UART based continuous recording
-	//traceSTART();
+	status = xTaskCreate(vTaskA, "TaskA", 500, NULL, 1, &xTaskAHandle);
+	configASSERT((status = pdPASS));
 
-	/* Task Creation */
-	status = xTaskCreate(task1_handler, "Task-1", 200, "Hello World from Task-1", 2, &task1_handle);
-	configASSERT(status == pdPASS);
+	status = xTaskCreate(vTaskB, "TaskB", 500, NULL, 2, &xTaskBHandle);
+	configASSERT((status = pdPASS));
 
-	status = xTaskCreate(task2_handler, "Task-2", 200, "Hello World from Task-2", 2, &task2_handle);
-	configASSERT(status == pdPASS);
+	/* status = xTaskCreate(vTask1, "Task1", 500, NULL, 1, &xTask1Handle);
+	configASSERT((status = pdPASS));
+
+	status = xTaskCreate(vTask2, "Task2", 500, NULL, 1, &xTask2Handle);
+	configASSERT((status = pdPASS)); */
 
 	/* FreeRTOS v10.4.6 */
 	vTaskStartScheduler();
 
 	//If the control comes here, then the launch of the scheduler has failed due to insufficient memory in the heap
-	sprintf(usr_msg, " Failed... \r\n");
-	printmsg(usr_msg);
-
   	while(1) {}
 }
 
@@ -86,61 +81,64 @@ void SystemClock_Config_HSI(uint8_t clock_freq) {
 	RCC_ClkInitTypeDef clk_init = {0};
 	uint8_t flash_latency = 0;
 
-	//Using HSI to derive PLL
+	/* Configure the main internal regulator output voltage */
+	__HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
+	/* VOS[1:0] = 0b11 (Scale 1 mode (reset value))
+	   Max f_hclk = 180MHz but can be extended to 216MHz by activating over-drive mode.
+	   Wait States (WS LATENCY) Table (RM p79) - Refer to Voltage Range: 2.7V - 3.6V
+	*/
+
+	/* Using HSI = 16MHz to derive PLL */
 	osc_init.OscillatorType = RCC_OSCILLATORTYPE_HSI;
 	osc_init.HSIState = RCC_HSI_ON;
+	osc_init.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
 	osc_init.PLL.PLLState = RCC_PLL_ON;
 	osc_init.PLL.PLLSource = RCC_PLLSOURCE_HSI;
 
-	/** Activate the Over-Drive mode
-	if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
-		Error_Handler();
-	}
-	*/
 	switch(clock_freq) {
-	case SYS_CLOCK_FREQ_50MHZ: {
-		osc_init.PLL.PLLM = 16;
-		osc_init.PLL.PLLN = 100;
+	case SYS_CLOCK_FREQ_54MHZ: {
+		osc_init.PLL.PLLM = 8;
+		osc_init.PLL.PLLN = 54;
 		osc_init.PLL.PLLP = RCC_PLLP_DIV2;
 		osc_init.PLL.PLLQ = 2;
 
 		clk_init.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | \
 							  RCC_CLOCKTYPE_PCLK1  | RCC_CLOCKTYPE_PCLK2);
 		clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;
-		clk_init.APB1CLKDivider = RCC_HCLK_DIV2;
-		clk_init.APB2CLKDivider = RCC_HCLK_DIV2;
-		flash_latency = 1;
+		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1; 	//HCLK = 54MHz (216MHz max)
+		clk_init.APB1CLKDivider = RCC_HCLK_DIV1;	//APB1 = 54MHz (54MHz max)
+		clk_init.APB2CLKDivider = RCC_HCLK_DIV1;	//APB2 = 54MHz (108MHz max) **can't reach max APB2 clock with this config**
+		flash_latency = FLASH_LATENCY_1; //30 < HCLK <= 60
 		break;
 	}
-	case SYS_CLOCK_FREQ_84MHZ: {
-		osc_init.PLL.PLLM = 16;
-		osc_init.PLL.PLLN = 168;
+	case SYS_CLOCK_FREQ_108MHZ: {
+		osc_init.PLL.PLLM = 8;
+		osc_init.PLL.PLLN = 108;
 		osc_init.PLL.PLLP = RCC_PLLP_DIV2;
 		osc_init.PLL.PLLQ = 2;
 
 		clk_init.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | \
 							  RCC_CLOCKTYPE_PCLK1  | RCC_CLOCKTYPE_PCLK2);
 		clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;
-		clk_init.APB1CLKDivider = RCC_HCLK_DIV2;
-		clk_init.APB2CLKDivider = RCC_HCLK_DIV2;
-		flash_latency = 2;
+		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1; 	//HCLK = 108MHz (216MHz max)
+		clk_init.APB1CLKDivider = RCC_HCLK_DIV2; 	//APB1 = 54MHz (54MHz max)
+		clk_init.APB2CLKDivider = RCC_HCLK_DIV1; 	//APB2 = 108MHz (108MHz max)
+		flash_latency = FLASH_LATENCY_3; //90 < HCLK <= 120
 		break;
 	}
-	case SYS_CLOCK_FREQ_120MHZ: {
-		osc_init.PLL.PLLM = 16;
-		osc_init.PLL.PLLN = 240;
+	case SYS_CLOCK_FREQ_216MHZ: {
+		osc_init.PLL.PLLM = 8;
+		osc_init.PLL.PLLN = 216;
 		osc_init.PLL.PLLP = RCC_PLLP_DIV2;
 		osc_init.PLL.PLLQ = 2;
 
 		clk_init.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | \
 							  RCC_CLOCKTYPE_PCLK1  | RCC_CLOCKTYPE_PCLK2);
 		clk_init.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1;
-		clk_init.APB1CLKDivider = RCC_HCLK_DIV4;
-		clk_init.APB2CLKDivider = RCC_HCLK_DIV2;
-		flash_latency = 3;
+		clk_init.AHBCLKDivider = RCC_SYSCLK_DIV1; 	//HCLK = 216MHz (216MHz max)
+		clk_init.APB1CLKDivider = RCC_HCLK_DIV4; 	//APB1 = 54MHz (54MHz max)
+		clk_init.APB2CLKDivider = RCC_HCLK_DIV2; 	//APB2 = 108MHz (108MHz max)
+		flash_latency = FLASH_LATENCY_7; //210 < HCLK <= 216
 		break;
 	}
 	default:
@@ -151,16 +149,16 @@ void SystemClock_Config_HSI(uint8_t clock_freq) {
 		Error_Handler();
 	}
 
+	/* Activate the Over-Drive mode for f_sysclk_max 216MHz*/
+	if(clock_freq == SYS_CLOCK_FREQ_216MHZ) {
+		if (HAL_PWREx_EnableOverDrive() != HAL_OK) {
+			Error_Handler();
+		}
+	}
+
 	if(HAL_RCC_ClockConfig(&clk_init, flash_latency) != HAL_OK) {
 		Error_Handler();
 	}
-
-	//Configure the SYSTICK timer interrupt frequency for every 1ms
-	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq() / 1000);
-	//Configure SYSTICK
-	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-	//SYSTICK IRQn interrupt configuration
-	HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
 static void GPIO_Init(void) {
@@ -193,87 +191,186 @@ static void GPIO_Init(void) {
 	HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
-static void UART_Init(void) {
-	/* USART2: SEGGER SystemView PD5 PD6 */
+static void USART2_Init(void) {
+	//SystemView USART interface
 	huart2.Instance = USART2;
-	huart2.Init.BaudRate = 115200;
+	huart2.Init.BaudRate = 500000;
 	huart2.Init.WordLength = UART_WORDLENGTH_8B;
 	huart2.Init.StopBits = UART_STOPBITS_1;
 	huart2.Init.Parity = UART_PARITY_NONE;
-	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart2.Init.Mode = UART_MODE_TX_RX;
-	huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+	huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+	huart2.Init.OverSampling = UART_OVERSAMPLING_8;
 	huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
 	huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if(HAL_UART_Init(&huart2) != HAL_OK) {
+	if (HAL_UART_Init(&huart2) != HAL_OK) {
 		Error_Handler();
 	}
+}
 
-	/* USART3: PD8 PD9 for ST-LINK debugging (printf ITM) */
+static void USART3_Init(void) {
+	//ST-Link USART interface
 	huart3.Instance = USART3;
 	huart3.Init.BaudRate = 115200;
 	huart3.Init.WordLength = UART_WORDLENGTH_8B;
 	huart3.Init.StopBits = UART_STOPBITS_1;
 	huart3.Init.Parity = UART_PARITY_NONE;
-	huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart3.Init.Mode = UART_MODE_TX_RX;
+	huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 	huart3.Init.OverSampling = UART_OVERSAMPLING_16;
 	huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
 	huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-	if(HAL_UART_Init(&huart3) != HAL_OK) {
+	if (HAL_UART_Init(&huart3) != HAL_OK) {
 		Error_Handler();
 	}
 }
 
-static void RTC_Init(void) {
-
-	/* Initialize RTC Only */
-	hrtc.Instance = RTC;
-	hrtc.Init.HourFormat = RTC_HOURFORMAT_12;
-	hrtc.Init.AsynchPrediv = 127;
-	hrtc.Init.SynchPrediv = 255;
-	hrtc.Init.OutPut = RTC_OUTPUT_DISABLE;
-	hrtc.Init.OutPutPolarity = RTC_OUTPUT_POLARITY_HIGH;
-	hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
-	if(HAL_RTC_Init(&hrtc) != HAL_OK) {
-		Error_Handler();
-	}
-}
-
-static void task1_handler(void* parameters) {
-
-	char msg[100];
+/* Blocked Tasks do not consume any CPU time */
+void vTaskA(void* pvParameters) {
 	while(1) {
-		SEGGER_SYSVIEW_PrintfTarget("Task 1");
-		printf("%s\n", (char*)parameters);
 
-		//Formatting string before using SEGGER's Printf
-		snprintf(msg, 100, "%s\n", (char*)parameters);
-		SEGGER_SYSVIEW_PrintfTarget(msg);
+		/* Do something */
+		/* Notify TaskB, bringing it out of the Blocked State */
+		xTaskNotifyGive(xTaskBHandle);
 
-		taskYIELD(); //cooperative scheduling with configUSE_PREEMPTION = 0
+		/* Place TaskA in the blocked state until it is time to run again */
+		vTaskDelay(pdMS_TO_TICKS(200));
+
+		/* Block until TaskB notifies this task to unblock */
+		ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 	}
-
-	/* Clean up before exiting */
 	vTaskDelete(NULL);
 }
 
-static void task2_handler(void* parameters) {
-
-	char msg[100];
+void vTaskB(void* pvParameters) {
 	while(1) {
-		SEGGER_SYSVIEW_PrintfTarget("Task 2");
-		printf("%s\n", (char*)parameters);
 
-		//Formatting string before using SEGGER's Printf
-		snprintf(msg, 100, "%s\n", (char*)parameters);
-		SEGGER_SYSVIEW_PrintfTarget(msg);
+		/* Do something */
 
-		taskYIELD(); //cooperative scheduling with configUSE_PREEMPTION = 0
+		/* Block until TaskA notifies this task to unblock */
+		ulTaskNotifyTake(pdTRUE, (TickType_t)portMAX_DELAY);
+
+		/* Notify TaskA, bringing it out of the blocked state */
+		xTaskNotifyGive(xTaskAHandle);
+
+
 	}
-
-	/* Clean up before exiting */
 	vTaskDelete(NULL);
+}
+
+/* This is an example of a transmit function in a generic
+peripheral driver.  An RTOS task calls the transmit function,
+then waits in the Blocked state (so not using an CPU time)
+until it is notified that the transmission is complete.  The
+transmission is performed by a DMA, and the DMA end interrupt
+is used to notify the task. */
+
+/*
+void vTask1(void* pvParameters) {
+
+	BaseType_t status;
+
+	size_t len = 8;
+	uint8_t data = 0x11;
+
+	while(1){
+		status = xTaskNotifyWait(0,0,NULL,pdMS_TO_TICKS(400));
+		if(status == pdTRUE) {
+			//Handle event
+			vAFunctionCalledFromATask(data, len);
+		} else {
+			//Clear errors, or take further action
+		}
+	}
+	vTaskDelete(NULL);
+}
+
+void vTask2(void* pvParameters) {
+
+	BaseType_t status;
+
+	size_t len = 8;
+	uint8_t data = 0x11;
+
+	while(1){
+		status = xTaskNotifyWait(0,0,NULL,pdMS_TO_TICKS(400));
+		if(status == pdTRUE) {
+			//Handle event
+			vAFunctionCalledFromATask(data, len);
+		} else {
+			//Clear errors, or take further action
+		}
+	}
+	vTaskDelete(NULL);
+}
+*/
+
+/* The peripheral driver's transmit function. */
+void StartTransmission(uint8_t *pcData, size_t xDataLength) {
+
+	/* At this point xTaskToNotify should be NULL as no transmission
+    is in progress.  A mutex can be used to guard access to the
+    peripheral if necessary. */
+    configASSERT( (xTaskToNotify == NULL) );
+
+    /* Store the handle of the calling task. */
+    xTaskToNotify = xTaskGetCurrentTaskHandle();
+
+    /* Start the transmission - an interrupt is generated when the
+    transmission is complete. */
+
+    //UART or CAN Tx
+    //vStartTransmit( pcData, xDataLength );
+}
+/*-----------------------------------------------------------*/
+
+/* The transmit end interrupt. */
+void vTransmitEndISR(void) {
+	BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    /* At this point xTaskToNotify should not be NULL as
+    a transmission was in progress. */
+    configASSERT( (xTaskToNotify != NULL) );
+
+    /* Notify the task that the transmission is complete. */
+    vTaskNotifyGiveIndexedFromISR( xTaskToNotify, xArrayIndex, &xHigherPriorityTaskWoken );
+
+    /* There are no transmissions in progress, so no tasks
+    to notify. */
+    xTaskToNotify = NULL;
+
+    /* If xHigherPriorityTaskWoken is now set to pdTRUE then a
+    context switch should be performed to ensure the interrupt
+    returns directly to the highest priority task.  The macro used
+    for this purpose is dependent on the port in use and may be
+    called portEND_SWITCHING_ISR(). */
+    portYIELD_FROM_ISR( xHigherPriorityTaskWoken );
+}
+/*-----------------------------------------------------------*/
+
+void vAFunctionCalledFromATask(uint8_t ucDataToTransmit, size_t xDataLength) {
+	uint32_t ulNotificationValue;
+	const TickType_t xMaxBlockTime = pdMS_TO_TICKS( 200 );
+
+	/* Start the transmission */
+	StartTransmission( &ucDataToTransmit, xDataLength );
+
+	/* Wait to be notified that the transmission is complete.  Note
+	the first parameter is pdTRUE, which has the effect of clearing
+	the task's notification value back to 0, making the notification
+	value act like a binary (rather than a counting) semaphore.  */
+	ulNotificationValue = ulTaskNotifyTakeIndexed(xArrayIndex, pdTRUE, xMaxBlockTime);
+	if(ulNotificationValue == 1) {
+		/* The transmission ended as expected. */
+	} else {
+		/* The call to ulTaskNotifyTake() timed out. */
+	}
+}
+
+void printmsg(char *msg) {
+	for(uint32_t i = 0; i < strlen(msg); i++) {
+		HAL_UART_Transmit(&huart3, (uint8_t*)&msg[i], sizeof(msg[i]), HAL_MAX_DELAY);
+	}
 }
 
 /**
@@ -285,21 +382,83 @@ static void task2_handler(void* parameters) {
  * @retval None
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	/* USER CODE BEGIN Callback 0 */
-
-	/* USER CODE END Callback 0 */
 	if (htim->Instance == TIM6) {
 		HAL_IncTick();
 	}
-	/* USER CODE BEGIN Callback 1 */
-
-	/* USER CODE END Callback 1 */
 }
 
-void printmsg(char *msg) {
-	for(uint32_t i = 0; i < strlen(msg); i++) {
-		HAL_UART_Transmit(&huart2, (uint8_t*)&msg[i], sizeof(msg[i]), HAL_MAX_DELAY);
+/*********************************************************************
+*
+*       vApplicationMallocFailedHook
+*
+*  Function description
+*    Called if a call to pvPortMalloc() fails because there
+*    is insufficient free memory available in the FreeRTOS heap.
+*    pvPortMalloc() is called internally by FreeRTOS API functions
+*    that create tasks, queues, software timers, and semaphores.
+*    The size of the FreeRTOS heap is set by the configTOTAL_HEAP_SIZE
+*    configuration constant in FreeRTOSConfig.h
+*
+*/
+void vApplicationMallocFailedHook(void) {
+	taskDISABLE_INTERRUPTS();
+	for(;;);
+}
+
+/*********************************************************************
+*
+*       vApplicationStackOverflowHook
+*
+*  Function description
+*    Run time stack overflow checking is performed if
+*    configCHECK_FOR_STACK_OVERFLOW is defined to 1 or 2.
+*    This hook function is called if a stack overflow is detected.
+*/
+void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName) {
+	(void) pcTaskName;
+	(void) xTask;
+	taskDISABLE_INTERRUPTS();
+	for(;;);
+}
+
+/*********************************************************************
+*
+*       vApplicationIdleHook
+*
+*  Function description
+*    This function is called on each cycle of the idle task.
+*    In this case it does nothing useful, other than report
+*    the amount of FreeRTOS heap that remains unallocated.
+*
+*/
+void vApplicationIdleHook(void) {
+#if configSUPPORT_DYNAMIC_ALLOCATION == 1
+	volatile size_t xFreeHeapSpace;
+
+	xFreeHeapSpace = xPortGetFreeHeapSize();
+	if(xFreeHeapSpace > 100) {
+		//
+		// By now, the kernel has allocated everything it is going to, so
+		// if there is a lot of heap remaining unallocated then
+		// the value of configTOTAL_HEAP_SIZE in FreeRTOSConfig.h can be
+		// reduced accordingly.
 	}
+#endif
+}
+
+
+/*********************************************************************
+*
+*       vApplicationTickHook
+*
+*  Function description
+*    A tick hook is used by the "Full" build configuration.
+*    The Full and blinky build configurations share a FreeRTOSConfig.h
+*    header file, so this simple build configuration also has to define
+*    a tick hook - even though it does not actually use it for anything.
+*
+*/
+void vApplicationTickHook(void) {
 }
 
 void Error_Handler(void) {
@@ -307,18 +466,21 @@ void Error_Handler(void) {
 	while(1);
 }
 
-void vAssertCalled(unsigned long ulLine, const char * const pcFileName) {
+void vAssertCalled(const char * const pcFileName, unsigned long ulLine ) {
 	volatile uint32_t ulSetToNonZeroInDebuggerToContinue = 0;
 
     /* Parameters are not used. */
-    (void)ulLine;
-    (void)pcFileName;
+    (void) ulLine;
+    (void) pcFileName;
 
-    taskENTER_CRITICAL(); {
+    taskENTER_CRITICAL();
+    {
         /* You can step out of this function to debug the assertion by using
         the debugger to set ulSetToNonZeroInDebuggerToContinue to a non-zero
         value. */
-        while( ulSetToNonZeroInDebuggerToContinue == 0 ) {}
+        while( ulSetToNonZeroInDebuggerToContinue == 0 )
+        {
+        }
     }
     taskEXIT_CRITICAL();
 }

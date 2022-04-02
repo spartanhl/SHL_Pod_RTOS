@@ -9,8 +9,6 @@
 #include "it.h"
 #include "main.h"
 
-extern TIM_HandleTypeDef htim6;
-
 /******************************************************************************/
 /*           Cortex-M7 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
@@ -45,6 +43,3 @@ void DebugMon_Handler(void) {
 /* please refer to the startup file (startup_stm32f7xx.s).                    */
 /******************************************************************************/
 
-void TIM6_DAC_IRQHandler(void) {
-	HAL_TIM_IRQHandler(&htim6);
-}

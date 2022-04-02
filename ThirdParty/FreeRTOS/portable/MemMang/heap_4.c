@@ -153,7 +153,7 @@ void * pvPortMalloc( size_t xWantedSize )
                             > xWantedSize )
                     {
                         xWantedSize += ( portBYTE_ALIGNMENT - ( xWantedSize & portBYTE_ALIGNMENT_MASK ) );
-                        configASSERT( ( xWantedSize & portBYTE_ALIGNMENT_MASK ) == 0 );
+                        configASSERT( (( xWantedSize & portBYTE_ALIGNMENT_MASK ) == 0 ));
                     }
                     else
                     {
@@ -204,7 +204,7 @@ void * pvPortMalloc( size_t xWantedSize )
                          * cast is used to prevent byte alignment warnings from the
                          * compiler. */
                         pxNewBlockLink = ( void * ) ( ( ( uint8_t * ) pxBlock ) + xWantedSize );
-                        configASSERT( ( ( ( size_t ) pxNewBlockLink ) & portBYTE_ALIGNMENT_MASK ) == 0 );
+                        configASSERT( (( ( ( size_t ) pxNewBlockLink ) & portBYTE_ALIGNMENT_MASK ) == 0) );
 
                         /* Calculate the sizes of two blocks split from the
                          * single block. */
@@ -269,7 +269,7 @@ void * pvPortMalloc( size_t xWantedSize )
         }
     #endif /* if ( configUSE_MALLOC_FAILED_HOOK == 1 ) */
 
-    configASSERT( ( ( ( size_t ) pvReturn ) & ( size_t ) portBYTE_ALIGNMENT_MASK ) == 0 );
+    configASSERT( (( ( ( size_t ) pvReturn ) & ( size_t ) portBYTE_ALIGNMENT_MASK ) == 0) );
     return pvReturn;
 }
 /*-----------------------------------------------------------*/
@@ -289,8 +289,8 @@ void vPortFree( void * pv )
         pxLink = ( void * ) puc;
 
         /* Check the block is actually allocated. */
-        configASSERT( ( pxLink->xBlockSize & xBlockAllocatedBit ) != 0 );
-        configASSERT( pxLink->pxNextFreeBlock == NULL );
+        configASSERT( (( pxLink->xBlockSize & xBlockAllocatedBit ) != 0) );
+        configASSERT( (pxLink->pxNextFreeBlock == NULL) );
 
         if( ( pxLink->xBlockSize & xBlockAllocatedBit ) != 0 )
         {

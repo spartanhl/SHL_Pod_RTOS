@@ -59,10 +59,10 @@
 #include "FreeRTOSConfig.h"
 
 /* Basic FreeRTOS definitions. */
-#include "../../../ThirdParty/FreeRTOS/include/projdefs.h"
+#include "projdefs.h"
 
 /* Definitions specific to the port being used. */
-#include "../../../ThirdParty/FreeRTOS/include/portable.h"
+#include "portable.h"
 
 /* Must be defaulted before configUSE_NEWLIB_REENTRANT is used below. */
 #ifndef configUSE_NEWLIB_REENTRANT

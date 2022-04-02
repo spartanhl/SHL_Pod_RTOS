@@ -36,7 +36,7 @@
 
 /*lint -save -e537 This headers are only multiply included if the application code
  * happens to also be including task.h. */
-#include "../../../ThirdParty/FreeRTOS/include/task.h"
+#include "task.h"
 /*lint -restore */
 
 /* *INDENT-OFF* */

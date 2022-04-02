@@ -222,7 +222,7 @@ static void prvTaskExitError( void )
      *
      * Artificially force an assert() to be triggered if configASSERT() is
      * defined, then stop here so application writers can catch the error. */
-    configASSERT( uxCriticalNesting == ~0UL );
+    configASSERT( (uxCriticalNesting == ~0UL ));
     portDISABLE_INTERRUPTS();
 
     while( ulDummy == 0 )
@@ -329,7 +329,7 @@ BaseType_t xPortStartScheduler( void )
                     /* Check the CMSIS configuration that defines the number of
                      * priority bits matches the number of priority bits actually queried
                      * from the hardware. */
-                    configASSERT( ( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == __NVIC_PRIO_BITS );
+                    configASSERT( (( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == __NVIC_PRIO_BITS) );
                 }
             #endif
 
@@ -338,7 +338,7 @@ BaseType_t xPortStartScheduler( void )
                     /* Check the FreeRTOS configuration that defines the number of
                      * priority bits matches the number of priority bits actually queried
                      * from the hardware. */
-                    configASSERT( ( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == configPRIO_BITS );
+                    configASSERT( (( portMAX_PRIGROUP_BITS - ulMaxPRIGROUPValue ) == configPRIO_BITS) );
                 }
             #endif
 
@@ -391,7 +391,7 @@ void vPortEndScheduler( void )
 {
     /* Not implemented in ports where there is nothing to return to.
      * Artificially force an assert. */
-    configASSERT( uxCriticalNesting == 1000UL );
+    configASSERT( (uxCriticalNesting == 1000UL) );
 }
 /*-----------------------------------------------------------*/
 
@@ -407,7 +407,7 @@ void vPortEnterCritical( void )
      * assert function also uses a critical section. */
     if( uxCriticalNesting == 1 )
     {
-        configASSERT( ( portNVIC_INT_CTRL_REG & portVECTACTIVE_MASK ) == 0 );
+        configASSERT( (( portNVIC_INT_CTRL_REG & portVECTACTIVE_MASK ) == 0) );
     }
 }
 /*-----------------------------------------------------------*/
@@ -753,7 +753,7 @@ static void vPortEnableVFP( void )
              * The following links provide detailed information:
              * https://www.FreeRTOS.org/RTOS-Cortex-M3-M4.html
              * https://www.FreeRTOS.org/FAQHelp.html */
-            configASSERT( ucCurrentPriority >= ucMaxSysCallPriority );
+            configASSERT( (ucCurrentPriority >= ucMaxSysCallPriority) );
         }
 
         /* Priority grouping:  The interrupt controller (NVIC) allows the bits
@@ -769,7 +769,7 @@ static void vPortEnableVFP( void )
          * scheduler.  Note however that some vendor specific peripheral libraries
          * assume a non-zero priority group setting, in which cases using a value
          * of zero will result in unpredictable behaviour. */
-        configASSERT( ( portAIRCR_REG & portPRIORITY_GROUP_MASK ) <= ulMaxPRIGROUPValue );
+        configASSERT( (( portAIRCR_REG & portPRIORITY_GROUP_MASK ) <= ulMaxPRIGROUPValue) );
     }
 
 #endif /* configASSERT_DEFINED */

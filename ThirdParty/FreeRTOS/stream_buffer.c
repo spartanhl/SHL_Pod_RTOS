@@ -247,16 +247,16 @@ static void prvInitialiseNewStreamBuffer( StreamBuffer_t * const pxStreamBuffer,
         {
             /* Is a message buffer but not statically allocated. */
             ucFlags = sbFLAGS_IS_MESSAGE_BUFFER;
-            configASSERT( xBufferSizeBytes > sbBYTES_TO_STORE_MESSAGE_LENGTH );
+            configASSERT( (xBufferSizeBytes > sbBYTES_TO_STORE_MESSAGE_LENGTH) );
         }
         else
         {
             /* Not a message buffer and not statically allocated. */
             ucFlags = 0;
-            configASSERT( xBufferSizeBytes > 0 );
+            configASSERT( (xBufferSizeBytes > 0) );
         }
 
-        configASSERT( xTriggerLevelBytes <= xBufferSizeBytes );
+        configASSERT( (xTriggerLevelBytes <= xBufferSizeBytes) );
 
         /* A trigger level of 0 would cause a waiting task to unblock even when
          * the buffer was empty. */
@@ -566,7 +566,7 @@ size_t xStreamBufferSend( StreamBufferHandle_t xStreamBuffer,
         xRequiredSpace += sbBYTES_TO_STORE_MESSAGE_LENGTH;
 
         /* Overflow? */
-        configASSERT( xRequiredSpace > xDataLengthBytes );
+        configASSERT( (xRequiredSpace > xDataLengthBytes) );
 
         /* If this is a message buffer then it must be possible to write the
          * whole message. */
@@ -614,7 +614,7 @@ size_t xStreamBufferSend( StreamBufferHandle_t xStreamBuffer,
                     ( void ) xTaskNotifyStateClear( NULL );
 
                     /* Should only be one writer. */
-                    configASSERT( pxStreamBuffer->xTaskWaitingToSend == NULL );
+                    configASSERT( (pxStreamBuffer->xTaskWaitingToSend == NULL) );
                     pxStreamBuffer->xTaskWaitingToSend = xTaskGetCurrentTaskHandle();
                 }
                 else
@@ -808,7 +808,7 @@ size_t xStreamBufferReceive( StreamBufferHandle_t xStreamBuffer,
                 ( void ) xTaskNotifyStateClear( NULL );
 
                 /* Should only be one reader. */
-                configASSERT( pxStreamBuffer->xTaskWaitingToReceive == NULL );
+                configASSERT( (pxStreamBuffer->xTaskWaitingToReceive == NULL) );
                 pxStreamBuffer->xTaskWaitingToReceive = xTaskGetCurrentTaskHandle();
             }
             else
@@ -895,7 +895,7 @@ size_t xStreamBufferNextMessageLengthBytes( StreamBufferHandle_t xStreamBuffer )
              * ( sbBYTES_TO_STORE_MESSAGE_LENGTH + 1 ), so if xBytesAvailable is
              * less than sbBYTES_TO_STORE_MESSAGE_LENGTH the only other valid
              * value is 0. */
-            configASSERT( xBytesAvailable == 0 );
+            configASSERT( (xBytesAvailable == 0) );
             xReturn = 0;
         }
     }
@@ -1145,7 +1145,7 @@ static size_t prvWriteBytesToBuffer( StreamBuffer_t * const pxStreamBuffer,
 {
     size_t xFirstLength;
 
-    configASSERT( xCount > ( size_t ) 0 );
+    configASSERT( (xCount > ( size_t ) 0) );
 
     /* Calculate the number of bytes that can be added in the first write -
      * which may be less than the total number of bytes that need to be added if
@@ -1153,7 +1153,7 @@ static size_t prvWriteBytesToBuffer( StreamBuffer_t * const pxStreamBuffer,
     xFirstLength = configMIN( pxStreamBuffer->xLength - xHead, xCount );
 
     /* Write as many bytes as can be written in the first write. */
-    configASSERT( ( xHead + xFirstLength ) <= pxStreamBuffer->xLength );
+    configASSERT( (( xHead + xFirstLength ) <= pxStreamBuffer->xLength) );
     ( void ) memcpy( ( void * ) ( &( pxStreamBuffer->pucBuffer[ xHead ] ) ), ( const void * ) pucData, xFirstLength ); /*lint !e9087 memcpy() requires void *. */
 
     /* If the number of bytes written was less than the number that could be
@@ -1161,7 +1161,7 @@ static size_t prvWriteBytesToBuffer( StreamBuffer_t * const pxStreamBuffer,
     if( xCount > xFirstLength )
     {
         /* ...then write the remaining bytes to the start of the buffer. */
-        configASSERT( ( xCount - xFirstLength ) <= pxStreamBuffer->xLength );
+        configASSERT( (( xCount - xFirstLength ) <= pxStreamBuffer->xLength) );
         ( void ) memcpy( ( void * ) pxStreamBuffer->pucBuffer, ( const void * ) &( pucData[ xFirstLength ] ), xCount - xFirstLength ); /*lint !e9087 memcpy() requires void *. */
     }
     else
@@ -1191,7 +1191,7 @@ static size_t prvReadBytesFromBuffer( StreamBuffer_t * pxStreamBuffer,
 {
     size_t xFirstLength;
 
-    configASSERT( xCount != ( size_t ) 0 );
+    configASSERT( (xCount != ( size_t ) 0) );
 
     /* Calculate the number of bytes that can be read - which may be
      * less than the number wanted if the data wraps around to the start of
@@ -1200,8 +1200,8 @@ static size_t prvReadBytesFromBuffer( StreamBuffer_t * pxStreamBuffer,
 
     /* Obtain the number of bytes it is possible to obtain in the first
      * read.  Asserts check bounds of read and write. */
-    configASSERT( xFirstLength <= xCount );
-    configASSERT( ( xTail + xFirstLength ) <= pxStreamBuffer->xLength );
+    configASSERT( (xFirstLength <= xCount) );
+    configASSERT((( xTail + xFirstLength ) <= pxStreamBuffer->xLength) );
     ( void ) memcpy( ( void * ) pucData, ( const void * ) &( pxStreamBuffer->pucBuffer[ xTail ] ), xFirstLength ); /*lint !e9087 memcpy() requires void *. */
 
     /* If the total number of wanted bytes is greater than the number
@@ -1264,7 +1264,7 @@ static void prvInitialiseNewStreamBuffer( StreamBuffer_t * const pxStreamBuffer,
              * memory.  Don't use 0xA5 as that is the stack fill value and could
              * result in confusion as to what is actually being observed. */
             const BaseType_t xWriteValue = 0x55;
-            configASSERT( memset( pucBuffer, ( int ) xWriteValue, xBufferSizeBytes ) == pucBuffer );
+            configASSERT((memset( pucBuffer, ( int ) xWriteValue, xBufferSizeBytes ) == pucBuffer) );
         } /*lint !e529 !e438 xWriteValue is only used if configASSERT() is defined. */
     #endif
 

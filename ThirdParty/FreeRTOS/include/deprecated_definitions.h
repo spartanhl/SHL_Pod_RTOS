@@ -86,7 +86,7 @@
 #endif
 
 #ifdef GCC_ARM7_ECLIPSE
-    #include "../../../ThirdParty/FreeRTOS/portable/GCC/ARM_CM7/portmacro.h"
+    #include "portmacro.h"
 #endif
 
 #ifdef ROWLEY_LPC23xx
@@ -229,24 +229,24 @@
 
 #ifdef __GNUC__
     #ifdef __AVR32_AVR32A__
-        #include "../../../ThirdParty/FreeRTOS/portable/GCC/ARM_CM7/portmacro.h"
+        #include "portmacro.h"
     #endif
 #endif
 
 #ifdef __ICCAVR32__
     #ifdef __CORE__
         #if __CORE__ == __AVR32A__
-            #include "../../../ThirdParty/FreeRTOS/portable/GCC/ARM_CM7/portmacro.h"
+            #include "portmacro.h"
         #endif
     #endif
 #endif
 
 #ifdef __91467D
-    #include "../../../ThirdParty/FreeRTOS/portable/GCC/ARM_CM7/portmacro.h"
+    #include "portmacro.h"
 #endif
 
 #ifdef __96340
-    #include "../../../ThirdParty/FreeRTOS/portable/GCC/ARM_CM7/portmacro.h"
+    #include "portmacro.h"
 #endif
 
 
