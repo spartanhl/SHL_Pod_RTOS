@@ -30,7 +30,6 @@ STM32CubeIDE 1.4.0 with ST-LINK GDB over USART3 virtual COM port
 **SHL_Pod_RTOS**
 |
 └───Includes 
-|
 └───Core 
 |   └───Inc 
 |   |   | - FreeRTOSConfig.h
@@ -53,7 +52,7 @@ STM32CubeIDE 1.4.0 with ST-LINK GDB over USART3 virtual COM port
 |   |	└───Device
 |   |	|   └───ST
 |   |	|       └───STM32F7xx
-|   |	|       └───Include
+|   |	|           └───Include
 |   |	└───Include
 |   └───STM32F7xx_HAL_Driver
 |   	└───Inc
@@ -67,14 +66,17 @@ STM32CubeIDE 1.4.0 with ST-LINK GDB over USART3 virtual COM port
 |   |	|   | - *other header files*
 |   |	|
 |   |	└───portable
-|   |		└───GCC
-|   |		|   └───ARM_CM7 ***Arm Cortex-M7 port***
-|   |		└───MemMang
-|   |		    | - heap_1.c ***Excluded from Build***
-|   |		    | - heap_2.c ***Excluded from Build***
-|   |		    | - heap_3.c ***Excluded from Build***
-|   |		    | - heap_4.c
-|   |		    | - heap_5.c ***Excluded from Build***
+|   |       └───GCC
+|   |       |   └───ARM_CM7  ***Arm Cortex-M7 port***
+|   |       |       | - port.c
+|   |       |       | - portmacro.h
+|   |       |
+|   |       └───MemMang
+|   |           | - heap_1.c ***Excluded from Build***
+|   |           | - heap_2.c ***Excluded from Build***
+|   |           | - heap_3.c ***Excluded from Build***
+|   |           | - heap_4.c
+|   |           | - heap_5.c ***Excluded from Build***
 |   |
 |   └───Tracealyzer
 |       | - *source files*
